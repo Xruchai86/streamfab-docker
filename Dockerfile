@@ -25,10 +25,12 @@ RUN dpkg --add-architecture i386 && \
         software-properties-common \
         wget gnupg2 ca-certificates cabextract unzip xdotool p7zip-full \
     && mkdir -pm755 /etc/apt/keyrings \
-    && wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key \
-    && wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources \
+    && wget -qO- https://dl.winehq.org/wine-builds/winehq.key | gpg --dearmor -o /etc/apt/keyrings/winehq-archive.gpg \
+    && wget -O /tmp/winehq-noble.sources https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources \
+    && sed 's#/etc/apt/keyrings/winehq-archive.key#/etc/apt/keyrings/winehq-archive.gpg#' /tmp/winehq-noble.sources > /etc/apt/sources.list.d/winehq-noble.sources \
+    && rm -f /tmp/winehq-noble.sources \
     && apt-get update \
-    && apt-get install -y --no-install-recommends --install-recommends winehq-stable winetricks \
+    && apt-get install -y --install-recommends winehq-stable winetricks \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
