@@ -1,0 +1,46 @@
+#!/usr/bin/with-contenv bash
+# Runs once per container start, before the desktop is shown.
+# 1. Creates/repairs the persistent Wine prefix under /config/.wine
+# 2. Installs the Windows runtime libs StreamFab needs (once)
+# 3. If a StreamFab installer .exe is sitting in /config/installer, launches it
+#    (interactive — you finish the install/activation from the desktop GUI)
+
+set -e
+
+WINEPREFIX="${WINEPREFIX:-/config/.wine}"
+INSTALLER_DIR="${STREAMFAB_INSTALLER_DIR:-/config/installer}"
+MARKER_DEPS="/config/.streamfab_deps_installed"
+MARKER_APP="/config/.streamfab_app_installed"
+
+mkdir -p "$INSTALLER_DIR" "${STREAMFAB_OUTPUT_DIR:-/output}"
+
+echo "[streamfab-setup] Using WINEPREFIX=$WINEPREFIX"
+
+if [ ! -d "$WINEPREFIX" ]; then
+    echo "[streamfab-setup] No wine prefix found — creating one (win64)..."
+    su abc -c "WINEARCH=win64 WINEPREFIX=$WINEPREFIX wineboot --init" || true
+fi
+
+# StreamFab bundles a Chromium-based browser for stream capture, so it
+# tends to need more of the media/runtime stack than plain DVDFab.
+if [ ! -f "$MARKER_DEPS" ]; then
+    echo "[streamfab-setup] Installing Windows runtime components via winetricks (first run only, this takes a while)..."
+    su abc -c "WINEPREFIX=$WINEPREFIX winetricks -q corefonts vcrun2019 dotnet48 msxml6 d3dcompiler_47" || \
+        echo "[streamfab-setup] WARNING: one or more winetricks components failed — check /config/.wine for what's missing."
+    touch "$MARKER_DEPS"
+fi
+
+INSTALLER_EXE=$(find "$INSTALLER_DIR" -maxdepth 1 -iname "*streamfab*.exe" 2>/dev/null | head -n1)
+
+if [ -n "$INSTALLER_EXE" ] && [ ! -f "$MARKER_APP" ]; then
+    echo "[streamfab-setup] Found installer: $INSTALLER_EXE"
+    echo "[streamfab-setup] Launching it — finish the install/license activation from the noVNC desktop."
+    su abc -c "WINEPREFIX=$WINEPREFIX wine '$INSTALLER_EXE'" || \
+        echo "[streamfab-setup] Installer exited non-zero — that's normal if you just closed it manually."
+    touch "$MARKER_APP"
+elif [ -z "$INSTALLER_EXE" ] && [ ! -f "$MARKER_APP" ]; then
+    echo "[streamfab-setup] No installer found in $INSTALLER_DIR yet."
+    echo "[streamfab-setup] Drop your StreamFab_Setup*.exe there and restart the container to install it."
+fi
+
+echo "[streamfab-setup] Done."

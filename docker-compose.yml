@@ -1,0 +1,22 @@
+services:
+  streamfab:
+    build: .
+    # or, once you've pushed it to your own registry:
+    # image: ghcr.io/xruchai86/streamfab-docker:latest
+    container_name: streamfab
+    security_opt:
+      - seccomp:unconfined   # webtop/wine GUI needs this on newer kernels
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Berlin
+      - TITLE=StreamFab
+    volumes:
+      - ./appdata/config:/config              # wine prefix + app state, keep this persistent!
+      - ./appdata/installer:/config/installer  # drop your StreamFab_Setup*.exe here
+      - /mnt/user/media/streamfab:/output      # downloaded/recorded output -> your Unraid share
+    ports:
+      - "3010:3000"   # noVNC HTTP (different host port than DVDFab if both run)
+      - "3011:3001"   # noVNC HTTPS
+    shm_size: "2gb"    # StreamFab's built-in Chromium browser needs headroom
+    restart: unless-stopped
